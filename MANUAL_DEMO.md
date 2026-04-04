@@ -59,6 +59,7 @@ Fitur aplikasi yang saat ini benar-benar tersedia:
 13. Upload file hasil oleh admin.
 14. Download file hasil oleh pengguna.
 15. Audit log aktivitas utama.
+16. Monitoring pendaftar baru dan verifikasi akun dari dashboard petugas.
 
 ## 4. Persiapan Sebelum Demo
 

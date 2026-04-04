@@ -136,6 +136,7 @@ Syarat agar berhasil login:
 Setelah login:
 
 - petugas diarahkan ke dashboard monitoring/admin
+- petugas juga bisa membuka halaman `Kelola Pendaftar` untuk melihat akun `service_user`, memfilter status `PENDING`, lalu melakukan `Approve` atau `Deactivate` langsung dari web
 
 ## 9. Akun Super Admin Saat Ini
 

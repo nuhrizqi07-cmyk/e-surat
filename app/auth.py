@@ -18,6 +18,7 @@ SERVICE_USER_ROLE = "service_user"
 MONITORING_ROLES = {"monitoring", "admin", "super_admin"}
 ACCOUNT_ACTIVE = "ACTIVE"
 ACCOUNT_PENDING = "PENDING"
+ACCOUNT_DEACTIVATED = "DEACTIVATED"
 
 
 def get_templates(request: Request) -> Jinja2Templates:

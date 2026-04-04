@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-from app.auth import ACCOUNT_ACTIVE, hash_password
+from app.auth import ACCOUNT_ACTIVE, ACCOUNT_DEACTIVATED, ACCOUNT_PENDING, hash_password
 from app.database import Base, SessionLocal, engine
 from app.models import User
 from app.schema import sync_schema
@@ -9,7 +9,7 @@ from app.schema import sync_schema
 
 INTERNAL_ROLES = {"monitoring", "admin", "super_admin"}
 ALL_ROLES = {"service_user", *INTERNAL_ROLES}
-ALL_STATUSES = {"ACTIVE", "PENDING"}
+ALL_STATUSES = {ACCOUNT_ACTIVE, ACCOUNT_PENDING, ACCOUNT_DEACTIVATED}
 
 
 def normalize_email(value: str) -> str:

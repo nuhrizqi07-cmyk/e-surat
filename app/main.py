@@ -12,6 +12,9 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.audit import log_audit_event
 from app.auth import (
+    ACCOUNT_ACTIVE,
+    ACCOUNT_DEACTIVATED,
+    ACCOUNT_PENDING,
     get_current_user,
     is_monitoring_user,
     is_service_user,
@@ -40,6 +43,12 @@ STATUS_LABELS = {
     "SELESAI": "status-complete",
 }
 VALID_STATUSES = tuple(STATUS_LABELS.keys())
+ACCOUNT_STATUS_LABELS = {
+    ACCOUNT_PENDING: "status-pending",
+    ACCOUNT_ACTIVE: "status-active",
+    ACCOUNT_DEACTIVATED: "status-deactivated",
+}
+VALID_ACCOUNT_STATUSES = tuple(ACCOUNT_STATUS_LABELS.keys())
 
 for directory in (STATIC_DIR, UPLOADS_DIR, OUTPUTS_DIR):
     directory.mkdir(parents=True, exist_ok=True)
@@ -118,6 +127,36 @@ def build_admin_dashboard_context(
     }
 
 
+def build_admin_user_management_context(
+    request: Request,
+    current_user: models.User,
+    db: Session,
+    selected_status: str = "",
+    message: str | None = None,
+):
+    query = db.query(models.User).filter(models.User.role == "service_user")
+    if selected_status:
+        query = query.filter(models.User.account_status == selected_status)
+
+    users = query.order_by(models.User.created_at.desc()).all()
+    return {
+        "request": request,
+        "app_name": "Sistem Pengajuan Dokumen",
+        "current_user": current_user,
+        "users": users,
+        "valid_account_statuses": VALID_ACCOUNT_STATUSES,
+        "selected_status": selected_status,
+        "account_status_labels": ACCOUNT_STATUS_LABELS,
+        "message": message,
+        "pending_count": db.query(models.User)
+        .filter(
+            models.User.role == "service_user",
+            models.User.account_status == ACCOUNT_PENDING,
+        )
+        .count(),
+    }
+
+
 def generate_document_id() -> str:
     return f"DOC-{datetime.now().strftime('%Y%m%d')}-{uuid4().hex[:8].upper()}"
 
@@ -174,6 +213,26 @@ def admin_dashboard(
         request,
         "admin_dashboard.html",
         build_admin_dashboard_context(request, current_user, db, selected_status),
+    )
+
+
+@app.get("/admin/users", response_class=HTMLResponse)
+def admin_users(
+    request: Request,
+    status_filter: str = "",
+    message: str = "",
+    db: Session = Depends(get_db),
+):
+    current_user = get_admin_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+
+    selected_status = status_filter if status_filter in VALID_ACCOUNT_STATUSES else ""
+    notice = message.strip() or None
+    return templates.TemplateResponse(
+        request,
+        "admin_users.html",
+        build_admin_user_management_context(request, current_user, db, selected_status, notice),
     )
 
 
@@ -297,6 +356,53 @@ def admin_document_detail(document_id: str, request: Request, db: Session = Depe
             "status_labels": STATUS_LABELS,
             "upload_error": None,
         },
+    )
+
+
+def get_service_user_for_admin(db: Session, user_id: int) -> models.User | None:
+    return (
+        db.query(models.User)
+        .filter(
+            models.User.id == user_id,
+            models.User.role == "service_user",
+        )
+        .first()
+    )
+
+
+@app.post("/admin/users/{user_id}/approve")
+def approve_service_user(user_id: int, request: Request, db: Session = Depends(get_db)):
+    current_user = get_admin_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+
+    service_user = get_service_user_for_admin(db, user_id)
+    if service_user:
+        service_user.account_status = ACCOUNT_ACTIVE
+        db.commit()
+        log_audit_event(db, request, current_user.id, "verify", f"USER-{service_user.id}")
+
+    return RedirectResponse(
+        url="/admin/users?message=Akun+berhasil+diaktifkan",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.post("/admin/users/{user_id}/deactivate")
+def deactivate_service_user(user_id: int, request: Request, db: Session = Depends(get_db)):
+    current_user = get_admin_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+
+    service_user = get_service_user_for_admin(db, user_id)
+    if service_user:
+        service_user.account_status = ACCOUNT_DEACTIVATED
+        db.commit()
+        log_audit_event(db, request, current_user.id, "verify", f"USER-{service_user.id}")
+
+    return RedirectResponse(
+        url="/admin/users?message=Status+akun+berhasil+dinonaktifkan",
+        status_code=status.HTTP_303_SEE_OTHER,
     )
 
 
