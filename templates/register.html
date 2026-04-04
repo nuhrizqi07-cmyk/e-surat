@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daftar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-950 via-emerald-950 to-cyan-900 text-slate-900">
+    <main class="mx-auto flex min-h-screen max-w-6xl items-center px-4 py-10 sm:px-6 lg:grid lg:grid-cols-2 lg:gap-10">
+        <section class="hidden rounded-[32px] bg-white/10 p-10 text-white shadow-2xl ring-1 ring-white/15 backdrop-blur lg:block">
+            <p class="text-sm font-semibold uppercase tracking-[0.35em] text-emerald-200">Daftar Pengguna Jasa</p>
+            <h1 class="mt-5 text-4xl font-semibold leading-tight">Buat akun perusahaan untuk mengajukan dokumen dan memantau progresnya.</h1>
+            <p class="mt-5 max-w-xl text-sm leading-7 text-emerald-50/80">Isi data perusahaan, identitas PIC, dan kata sandi. Akun bisa langsung aktif atau menunggu verifikasi, sesuai pengaturan sistem.</p>
+        </section>
+
+        <section class="w-full rounded-[32px] bg-white p-8 shadow-2xl ring-1 ring-slate-200 sm:p-10">
+            <p class="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-700">Autentikasi</p>
+            <h1 class="mt-3 text-3xl font-semibold text-slate-900">Daftar Pengguna Jasa</h1>
+            <p class="mt-2 text-sm text-slate-500">Lengkapi data perusahaan untuk membuat akun Pengguna Jasa.</p>
+            {% if error %}
+            <div class="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{{ error }}</div>
+            {% endif %}
+            {% if success %}
+            <div class="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{{ success }}</div>
+            {% endif %}
+            <form class="mt-6 space-y-5" method="post" action="/register">
+                <div class="space-y-2">
+                    <label for="company_name" class="text-sm font-semibold text-slate-700">Nama Perusahaan</label>
+                    <input id="company_name" name="company_name" type="text" value="{{ form_data.company_name if form_data else '' }}" required class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100">
+                </div>
+                <div class="space-y-2">
+                    <label for="email" class="text-sm font-semibold text-slate-700">Email</label>
+                    <input id="email" name="email" type="email" value="{{ form_data.email if form_data else '' }}" required class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100">
+                </div>
+                <div class="space-y-2">
+                    <label for="business_id" class="text-sm font-semibold text-slate-700">Nomor Izin / NIB / NPWP</label>
+                    <input id="business_id" name="business_id" type="text" value="{{ form_data.business_id if form_data else '' }}" required class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100">
+                </div>
+                <div class="space-y-2">
+                    <label for="pic_name" class="text-sm font-semibold text-slate-700">Nama PIC</label>
+                    <input id="pic_name" name="pic_name" type="text" value="{{ form_data.pic_name if form_data else '' }}" required class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100">
+                </div>
+                <div class="space-y-2">
+                    <label for="password" class="text-sm font-semibold text-slate-700">Kata Sandi</label>
+                    <input id="password" name="password" type="password" minlength="8" required class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100">
+                </div>
+                <button type="submit" class="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700">Buat Akun</button>
+            </form>
+            <p class="mt-6 text-sm text-slate-500">Sudah terdaftar? <a href="/login/pengguna-jasa" class="font-semibold text-emerald-700 hover:text-emerald-800">Login Pengguna Jasa di sini</a>.</p>
+        </section>
+    </main>
+</body>
+</html>

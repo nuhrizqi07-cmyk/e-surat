@@ -1,0 +1,502 @@
+from pathlib import Path
+from uuid import uuid4
+from datetime import datetime
+
+import uvicorn
+from fastapi import FastAPI, Request, Depends, Form, File, UploadFile, status
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
+from starlette.middleware.sessions import SessionMiddleware
+
+from app.audit import log_audit_event
+from app.auth import (
+    get_current_user,
+    is_monitoring_user,
+    is_service_user,
+    get_session_secret,
+    router as auth_router,
+    session_uses_https,
+)
+from app.database import Base, engine, get_db
+from app import models
+from app.receipt import generate_submission_receipt
+from app.schema import sync_schema
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+TEMPLATES_DIR = BASE_DIR / "templates"
+STATIC_DIR = BASE_DIR / "static"
+UPLOADS_DIR = BASE_DIR / "uploads"
+OUTPUTS_DIR = BASE_DIR / "outputs"
+MAX_UPLOAD_SIZE = 5 * 1024 * 1024
+STATUS_LABELS = {
+    "DIAJUKAN": "status-submitted",
+    "DIVERIFIKASI": "status-verified",
+    "DITOLAK": "status-rejected",
+    "DITERIMA": "status-accepted",
+    "DIPROSES": "status-processing",
+    "SELESAI": "status-complete",
+}
+VALID_STATUSES = tuple(STATUS_LABELS.keys())
+
+for directory in (STATIC_DIR, UPLOADS_DIR, OUTPUTS_DIR):
+    directory.mkdir(parents=True, exist_ok=True)
+
+sync_schema()
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="Sistem Pengajuan Dokumen")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=get_session_secret(),
+    same_site="lax",
+    https_only=session_uses_https(),
+    max_age=60 * 60 * 8,
+    session_cookie="document_submission_session",
+)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+app.state.templates = templates
+app.include_router(auth_router)
+
+
+def build_home_context(request: Request, db: Session, error: str | None = None):
+    current_user = get_current_user(request, db)
+
+    return {
+        "request": request,
+        "app_name": "Sistem Pengajuan Dokumen",
+        "current_user": current_user,
+        "error": error,
+    }
+
+
+def build_dashboard_context(request: Request, current_user: models.User, db: Session):
+    submissions = (
+        db.query(models.DocumentSubmission)
+        .filter(models.DocumentSubmission.user_id == current_user.id)
+        .order_by(models.DocumentSubmission.created_at.desc())
+        .all()
+    )
+    return {
+        "request": request,
+        "app_name": "Sistem Pengajuan Dokumen",
+        "current_user": current_user,
+        "submissions": submissions,
+        "status_labels": STATUS_LABELS,
+    }
+
+
+def get_admin_user(request: Request, db: Session) -> models.User | None:
+    current_user = get_current_user(request, db)
+    if not is_monitoring_user(current_user):
+        return None
+    return current_user
+
+
+def build_admin_dashboard_context(
+    request: Request,
+    current_user: models.User,
+    db: Session,
+    selected_status: str = "",
+):
+    query = db.query(models.DocumentSubmission).join(models.User)
+    if selected_status:
+        query = query.filter(models.DocumentSubmission.status == selected_status)
+
+    submissions = query.order_by(models.DocumentSubmission.created_at.desc()).all()
+    return {
+        "request": request,
+        "app_name": "Sistem Pengajuan Dokumen",
+        "current_user": current_user,
+        "submissions": submissions,
+        "status_labels": STATUS_LABELS,
+        "valid_statuses": VALID_STATUSES,
+        "selected_status": selected_status,
+    }
+
+
+def generate_document_id() -> str:
+    return f"DOC-{datetime.now().strftime('%Y%m%d')}-{uuid4().hex[:8].upper()}"
+
+
+def validate_pdf_upload(file: UploadFile, contents: bytes) -> str | None:
+    filename = file.filename or ""
+    if not filename.lower().endswith(".pdf") or file.content_type not in {"application/pdf", "application/octet-stream"}:
+        return "Hanya file PDF yang diperbolehkan."
+
+    if len(contents) > MAX_UPLOAD_SIZE:
+        return "Ukuran PDF harus 5 MB atau lebih kecil."
+
+    if not contents.startswith(b"%PDF"):
+        return "File yang diunggah bukan PDF yang valid."
+
+    return None
+
+
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if is_monitoring_user(current_user):
+        return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    return templates.TemplateResponse(request, "index.html", build_home_context(request, db))
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/pengguna-jasa", status_code=status.HTTP_303_SEE_OTHER)
+    if not is_service_user(current_user):
+        return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+    return templates.TemplateResponse(
+        request,
+        "dashboard.html",
+        build_dashboard_context(request, current_user, db),
+    )
+
+
+@app.get("/admin/dashboard", response_class=HTMLResponse)
+def admin_dashboard(
+    request: Request,
+    status_filter: str = "",
+    db: Session = Depends(get_db),
+):
+    current_user = get_admin_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+
+    selected_status = status_filter if status_filter in VALID_STATUSES else ""
+    return templates.TemplateResponse(
+        request,
+        "admin_dashboard.html",
+        build_admin_dashboard_context(request, current_user, db, selected_status),
+    )
+
+
+@app.get("/documents/{document_id}", response_class=HTMLResponse)
+def document_detail(document_id: str, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/pengguna-jasa", status_code=status.HTTP_303_SEE_OTHER)
+    if not is_service_user(current_user):
+        return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+    submission = (
+        db.query(models.DocumentSubmission)
+        .filter(
+            models.DocumentSubmission.document_id == document_id,
+            models.DocumentSubmission.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not submission:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+    return templates.TemplateResponse(
+        request,
+        "document_detail.html",
+        {
+            "request": request,
+            "app_name": "Sistem Pengajuan Dokumen",
+            "current_user": current_user,
+            "submission": submission,
+            "status_labels": STATUS_LABELS,
+        },
+    )
+
+
+@app.get("/documents/{document_id}/result")
+def download_result_document(document_id: str, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/pengguna-jasa", status_code=status.HTTP_303_SEE_OTHER)
+    if not is_service_user(current_user):
+        return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+    submission = (
+        db.query(models.DocumentSubmission)
+        .filter(
+            models.DocumentSubmission.document_id == document_id,
+            models.DocumentSubmission.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not submission or not submission.result_stored_filename:
+        return RedirectResponse(url=f"/documents/{document_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+    result_path = OUTPUTS_DIR / submission.result_stored_filename
+    if not result_path.exists():
+        return RedirectResponse(url=f"/documents/{document_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+    log_audit_event(db, request, current_user.id, "download", submission.document_id)
+    return FileResponse(
+        path=result_path,
+        media_type="application/pdf",
+        filename=submission.result_original_filename or submission.result_stored_filename,
+    )
+
+
+@app.get("/documents/{document_id}/receipt")
+def download_receipt_document(document_id: str, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/pengguna-jasa", status_code=status.HTTP_303_SEE_OTHER)
+    if not is_service_user(current_user):
+        return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+    submission = (
+        db.query(models.DocumentSubmission)
+        .filter(
+            models.DocumentSubmission.document_id == document_id,
+            models.DocumentSubmission.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not submission or not submission.receipt_stored_filename:
+        return RedirectResponse(url=f"/documents/{document_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+    receipt_path = OUTPUTS_DIR / submission.receipt_stored_filename
+    if not receipt_path.exists():
+        return RedirectResponse(url=f"/documents/{document_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+    log_audit_event(db, request, current_user.id, "download", submission.document_id)
+    return FileResponse(
+        path=receipt_path,
+        media_type="application/pdf",
+        filename=submission.receipt_original_filename or submission.receipt_stored_filename,
+    )
+
+
+@app.get("/admin/documents/{document_id}", response_class=HTMLResponse)
+def admin_document_detail(document_id: str, request: Request, db: Session = Depends(get_db)):
+    current_user = get_admin_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+
+    submission = (
+        db.query(models.DocumentSubmission)
+        .join(models.User)
+        .filter(models.DocumentSubmission.document_id == document_id)
+        .first()
+    )
+    if not submission:
+        return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+    return templates.TemplateResponse(
+        request,
+        "admin_document_detail.html",
+        {
+            "request": request,
+            "app_name": "Sistem Pengajuan Dokumen",
+            "current_user": current_user,
+            "submission": submission,
+            "status_labels": STATUS_LABELS,
+            "upload_error": None,
+        },
+    )
+
+
+@app.post("/admin/documents/{document_id}/approve")
+def approve_document(document_id: str, request: Request, db: Session = Depends(get_db)):
+    current_user = get_admin_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+
+    submission = (
+        db.query(models.DocumentSubmission)
+        .filter(models.DocumentSubmission.document_id == document_id)
+        .first()
+    )
+    if submission:
+        submission.status = "DITERIMA"
+        submission.admin_notes = None
+        db.commit()
+        log_audit_event(db, request, current_user.id, "verify", submission.document_id)
+
+    return RedirectResponse(
+        url=f"/admin/documents/{document_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.post("/admin/documents/{document_id}/process")
+def process_document(document_id: str, request: Request, db: Session = Depends(get_db)):
+    current_user = get_admin_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+
+    submission = (
+        db.query(models.DocumentSubmission)
+        .filter(models.DocumentSubmission.document_id == document_id)
+        .first()
+    )
+    if submission:
+        submission.status = "DIPROSES"
+        db.commit()
+        log_audit_event(db, request, current_user.id, "verify", submission.document_id)
+
+    return RedirectResponse(
+        url=f"/admin/documents/{document_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.post("/admin/documents/{document_id}/reject")
+def reject_document(
+    document_id: str,
+    request: Request,
+    notes: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    current_user = get_admin_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+
+    submission = (
+        db.query(models.DocumentSubmission)
+        .filter(models.DocumentSubmission.document_id == document_id)
+        .first()
+    )
+    cleaned_notes = notes.strip()
+    if submission and cleaned_notes:
+        submission.status = "DITOLAK"
+        submission.admin_notes = cleaned_notes
+        db.commit()
+        log_audit_event(db, request, current_user.id, "verify", submission.document_id)
+
+    return RedirectResponse(
+        url=f"/admin/documents/{document_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.post("/admin/documents/{document_id}/result", response_class=HTMLResponse)
+async def upload_result_document(
+    document_id: str,
+    request: Request,
+    result_file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    current_user = get_admin_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+
+    submission = (
+        db.query(models.DocumentSubmission)
+        .join(models.User)
+        .filter(models.DocumentSubmission.document_id == document_id)
+        .first()
+    )
+    if not submission:
+        return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+    contents = await result_file.read()
+    validation_error = validate_pdf_upload(result_file, contents)
+    if validation_error:
+        return templates.TemplateResponse(
+            request,
+            "admin_document_detail.html",
+            {
+                "request": request,
+                "app_name": "Sistem Pengajuan Dokumen",
+                "current_user": current_user,
+                "submission": submission,
+                "status_labels": STATUS_LABELS,
+                "upload_error": validation_error,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    stored_filename = f"{document_id}-result-{uuid4().hex}.pdf"
+    output_path = OUTPUTS_DIR / stored_filename
+    output_path.write_bytes(contents)
+
+    submission.result_original_filename = result_file.filename or "result.pdf"
+    submission.result_stored_filename = stored_filename
+    submission.status = "SELESAI"
+    db.commit()
+
+    return RedirectResponse(
+        url=f"/admin/documents/{document_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@app.post("/documents/upload", response_class=HTMLResponse)
+async def upload_document(
+    request: Request,
+    subject: str = Form(...),
+    document_date: str = Form(...),
+    description: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/pengguna-jasa", status_code=status.HTTP_303_SEE_OTHER)
+    if not is_service_user(current_user):
+        return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+    subject = subject.strip()
+    description = description.strip()
+
+    if not subject or not description:
+        context = build_home_context(request, db, error="Perihal dan deskripsi wajib diisi.")
+        return templates.TemplateResponse(request, "index.html", context, status_code=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        parsed_date = datetime.strptime(document_date, "%Y-%m-%d").date()
+    except ValueError:
+        context = build_home_context(request, db, error="Silakan isi tanggal dokumen yang valid.")
+        return templates.TemplateResponse(request, "index.html", context, status_code=status.HTTP_400_BAD_REQUEST)
+
+    contents = await file.read()
+    validation_error = validate_pdf_upload(file, contents)
+    if validation_error:
+        context = build_home_context(request, db, error=validation_error)
+        return templates.TemplateResponse(request, "index.html", context, status_code=status.HTTP_400_BAD_REQUEST)
+
+    document_id = generate_document_id()
+    stored_filename = f"{document_id}-{uuid4().hex}.pdf"
+    upload_path = UPLOADS_DIR / stored_filename
+    upload_path.write_bytes(contents)
+
+    submission_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    receipt_stored_filename = f"{document_id}-receipt.pdf"
+    receipt_path = OUTPUTS_DIR / receipt_stored_filename
+    generate_submission_receipt(
+        output_path=receipt_path,
+        document_id=document_id,
+        username=current_user.username,
+        document_date=parsed_date.strftime("%Y-%m-%d"),
+        subject=subject,
+        status="DIAJUKAN",
+        timestamp=submission_timestamp,
+    )
+
+    submission = models.DocumentSubmission(
+        user_id=current_user.id,
+        document_id=document_id,
+        subject=subject,
+        document_date=parsed_date,
+        description=description,
+        original_filename=file.filename or "dokumen.pdf",
+        stored_filename=stored_filename,
+        receipt_original_filename=f"receipt-{document_id}.pdf",
+        receipt_stored_filename=receipt_stored_filename,
+        status="DIAJUKAN",
+    )
+    db.add(submission)
+    db.commit()
+    log_audit_event(db, request, current_user.id, "upload", submission.document_id)
+
+    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+
+
+if __name__ == "__main__":
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+
