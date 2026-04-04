@@ -48,6 +48,16 @@ Variabel environment yang didukung:
 - `SESSION_HTTPS_ONLY`
 - `SERVICE_USER_AUTO_APPROVE`
 
+## Deploy ke Railway
+
+Project ini sudah menyertakan `Procfile` dan `railway.json` agar Railway bisa langsung menjalankan FastAPI dengan `uvicorn`.
+
+Environment variable yang disarankan di Railway:
+
+- `SESSION_SECRET_KEY`
+- `SESSION_HTTPS_ONLY=true`
+- `SERVICE_USER_AUTO_APPROVE=false`
+
 ## Kelola Akun Petugas
 
 Contoh perintah untuk membuat akun petugas:
