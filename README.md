@@ -47,6 +47,8 @@ Variabel environment yang didukung:
 - `SESSION_SECRET_KEY`
 - `SESSION_HTTPS_ONLY`
 - `SERVICE_USER_AUTO_APPROVE`
+- `PETUGAS_REGISTRATION_CODE`
+- `SUPER_ADMIN_REGISTRATION_CODE`
 
 ## Deploy ke Railway
 
@@ -57,6 +59,8 @@ Environment variable yang disarankan di Railway:
 - `SESSION_SECRET_KEY`
 - `SESSION_HTTPS_ONLY=true`
 - `SERVICE_USER_AUTO_APPROVE=false`
+- `PETUGAS_REGISTRATION_CODE`
+- `SUPER_ADMIN_REGISTRATION_CODE`
 
 ## Kelola Akun Petugas
 

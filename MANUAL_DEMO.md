@@ -35,7 +35,7 @@ Terdiri dari:
 
 Petugas internal:
 
-- tidak mendaftar dari form publik
+- sementara bisa didaftarkan dari form web publik dengan memilih role petugas dan memasukkan kode registrasi internal
 - akunnya dibuat langsung di database atau lewat CLI manager
 - login dari halaman `Login Petugas`
 - setelah login masuk ke dashboard monitoring/admin
@@ -46,20 +46,21 @@ Fitur aplikasi yang saat ini benar-benar tersedia:
 
 1. Halaman awal dengan 3 pilihan akses.
 2. Registrasi Pengguna Jasa.
-3. Login Pengguna Jasa.
-4. Login Petugas.
-5. Dashboard Pengguna Jasa.
-6. Upload dokumen PDF.
-7. Penyimpanan metadata dokumen ke database.
-8. Pembuatan tanda terima PDF otomatis.
-9. Detail dokumen pengguna.
-10. Dashboard monitoring/admin.
-11. Filter status dokumen.
-12. Approve, reject, dan mark as processed.
-13. Upload file hasil oleh admin.
-14. Download file hasil oleh pengguna.
-15. Audit log aktivitas utama.
-16. Monitoring pendaftar baru dan verifikasi akun dari dashboard petugas.
+3. Registrasi akun petugas via web dengan kode internal.
+4. Login Pengguna Jasa.
+5. Login Petugas.
+6. Dashboard Pengguna Jasa.
+7. Upload dokumen PDF.
+8. Penyimpanan metadata dokumen ke database.
+9. Pembuatan tanda terima PDF otomatis.
+10. Detail dokumen pengguna.
+11. Dashboard monitoring/admin.
+12. Filter status dokumen.
+13. Approve, reject, dan mark as processed.
+14. Upload file hasil oleh admin.
+15. Download file hasil oleh pengguna.
+16. Audit log aktivitas utama.
+17. Monitoring pendaftar baru dan verifikasi akun dari dashboard petugas.
 
 ## 4. Persiapan Sebelum Demo
 
@@ -132,6 +133,7 @@ Tunjukkan 3 opsi:
 Narasi:
 
 "Pemisahan ini dibuat supaya akun publik dan akun internal tidak tercampur. Petugas internal tidak dibuat lewat form daftar umum."
+"Pemisahan akses tetap ada di halaman login, tetapi sementara pendaftaran perusahaan dan petugas dapat dilakukan dari satu form web dengan kontrol role dan kode registrasi internal."
 
 ### C. Demo Registrasi Pengguna Jasa
 

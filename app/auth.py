@@ -16,6 +16,13 @@ router = APIRouter(tags=["authentication"])
 
 SERVICE_USER_ROLE = "service_user"
 MONITORING_ROLES = {"monitoring", "admin", "super_admin"}
+SELF_REGISTRATION_ROLES = {
+    SERVICE_USER_ROLE,
+    "monitoring",
+    "admin",
+    "super_admin",
+}
+INTERNAL_REGISTRATION_ROLES = MONITORING_ROLES
 ACCOUNT_ACTIVE = "ACTIVE"
 ACCOUNT_PENDING = "PENDING"
 ACCOUNT_DEACTIVATED = "DEACTIVATED"
@@ -51,6 +58,22 @@ def is_monitoring_user(user: User | None) -> bool:
 def get_registration_status() -> str:
     auto_approve = os.getenv("SERVICE_USER_AUTO_APPROVE", "false").lower() == "true"
     return ACCOUNT_ACTIVE if auto_approve else ACCOUNT_PENDING
+
+
+def get_internal_registration_code(role: str) -> str:
+    if role == "super_admin":
+        return os.getenv("SUPER_ADMIN_REGISTRATION_CODE", "").strip()
+    return os.getenv("PETUGAS_REGISTRATION_CODE", "").strip()
+
+
+def get_registration_label(role: str) -> str:
+    labels = {
+        SERVICE_USER_ROLE: "Pengguna Jasa",
+        "monitoring": "Petugas Monitoring",
+        "admin": "Admin",
+        "super_admin": "Super Admin",
+    }
+    return labels.get(role, "Akun")
 
 
 def redirect_after_login(user: User) -> str:
@@ -113,31 +136,67 @@ def register_page(request: Request, templates: Jinja2Templates = Depends(get_tem
 @router.post("/register")
 def register_user(
     request: Request,
-    company_name: str = Form(...),
+    role: str = Form(SERVICE_USER_ROLE),
+    username: str = Form(""),
+    company_name: str = Form(""),
     email: str = Form(...),
-    business_id: str = Form(...),
+    business_id: str = Form(""),
     pic_name: str = Form(...),
     password: str = Form(...),
+    registration_code: str = Form(""),
     db: Session = Depends(get_db),
     templates: Jinja2Templates = Depends(get_templates),
 ):
+    role = role.strip()
+    username = username.strip()
     company_name = company_name.strip()
     email = email.strip().lower()
     business_id = business_id.strip()
     pic_name = pic_name.strip()
+    registration_code = registration_code.strip()
 
     form_data = {
+        "role": role,
+        "username": username,
         "company_name": company_name,
         "email": email,
         "business_id": business_id,
         "pic_name": pic_name,
+        "registration_code": registration_code,
     }
 
-    if not all([company_name, email, business_id, pic_name]):
+    if role not in SELF_REGISTRATION_ROLES:
         return render_register(
             request,
             templates,
-            error="Semua data perusahaan wajib diisi.",
+            error="Role pendaftaran tidak valid.",
+            form_data=form_data,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not email or not pic_name:
+        return render_register(
+            request,
+            templates,
+            error="Email dan nama PIC wajib diisi.",
+            form_data=form_data,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if role == SERVICE_USER_ROLE and not all([company_name, business_id]):
+        return render_register(
+            request,
+            templates,
+            error="Untuk akun perusahaan, nama perusahaan dan nomor izin/NIB/NPWP wajib diisi.",
+            form_data=form_data,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if role in INTERNAL_REGISTRATION_ROLES and not username:
+        return render_register(
+            request,
+            templates,
+            error="Username wajib diisi untuk akun petugas.",
             form_data=form_data,
             status_code=status.HTTP_400_BAD_REQUEST,
         )
@@ -160,25 +219,48 @@ def register_user(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
+    expected_registration_code = get_internal_registration_code(role)
+    if role in INTERNAL_REGISTRATION_ROLES:
+        if not expected_registration_code:
+            return render_register(
+                request,
+                templates,
+                error="Pendaftaran akun internal belum diaktifkan. Set environment variable kode registrasi terlebih dahulu.",
+                form_data=form_data,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        if registration_code != expected_registration_code:
+            return render_register(
+                request,
+                templates,
+                error="Kode registrasi internal tidak valid.",
+                form_data=form_data,
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+
     existing_user = db.query(User).filter(User.email == email).first()
-    if existing_user:
+    existing_username = None
+    if username:
+        existing_username = db.query(User).filter(User.username == username).first()
+
+    if existing_user or existing_username:
         return render_register(
             request,
             templates,
-            error="Email sudah terdaftar.",
+            error="Email atau username sudah terdaftar.",
             form_data=form_data,
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    account_status = get_registration_status()
+    account_status = ACCOUNT_ACTIVE if role in INTERNAL_REGISTRATION_ROLES else get_registration_status()
     user = User(
-        username=email,
-        company_name=company_name,
+        username=username or email,
+        company_name=company_name if role == SERVICE_USER_ROLE else None,
         email=email,
-        business_id=business_id,
+        business_id=business_id if role == SERVICE_USER_ROLE else None,
         pic_name=pic_name,
         password_hash=hash_password(password),
-        role=SERVICE_USER_ROLE,
+        role=role,
         account_status=account_status,
     )
     db.add(user)
@@ -189,14 +271,14 @@ def register_user(
         request.session.clear()
         request.session["user_id"] = user.id
         request.session["role"] = user.role
-        request.session["username"] = user.pic_name or user.company_name or user.email
+        request.session["username"] = user.username or user.pic_name or user.company_name or user.email
         log_audit_event(db, request, user.id, "login")
-        return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url=redirect_after_login(user), status_code=status.HTTP_303_SEE_OTHER)
 
     return render_register(
         request,
         templates,
-        success="Pendaftaran berhasil. Akun Anda menunggu verifikasi petugas sebelum bisa digunakan.",
+        success=f"Pendaftaran {get_registration_label(role)} berhasil. Akun Anda menunggu verifikasi petugas sebelum bisa digunakan.",
     )
 
 

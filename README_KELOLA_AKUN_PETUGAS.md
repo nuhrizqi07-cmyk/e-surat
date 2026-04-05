@@ -1,6 +1,6 @@
 # Panduan Kelola Akun Petugas
 
-Dokumen ini khusus untuk super admin atau admin teknis yang mengelola akun petugas dan `super_admin` langsung dari server atau PC lokal, tanpa form frontend publik.
+Dokumen ini khusus untuk super admin atau admin teknis yang mengelola akun petugas dan `super_admin` langsung dari server atau PC lokal, atau sementara melalui form web publik dengan kode registrasi internal.
 
 ## 1. Prinsip Akses
 
@@ -13,7 +13,7 @@ Dokumen ini khusus untuk super admin atau admin teknis yang mengelola akun petug
 - `super_admin`
   Digunakan untuk akun utama pengelola sistem.
 
-Petugas internal tidak dibuat dari UI publik. Akun mereka dibuat langsung di database melalui CLI manager.
+Petugas internal sementara bisa dibuat dari UI publik jika pemohon memiliki kode registrasi internal yang benar. Selain itu, akun juga tetap bisa dibuat lewat CLI manager.
 
 ## 2. Lokasi Database
 
@@ -51,6 +51,11 @@ Output akan menampilkan:
 - `status`
 
 ## 5. Membuat Akun Petugas Baru
+
+Selain lewat CLI, akun petugas juga bisa didaftarkan dari halaman `/register` dengan memilih role `monitoring`, `admin`, atau `super_admin`, lalu memasukkan kode registrasi internal dari environment variable berikut:
+
+- `PETUGAS_REGISTRATION_CODE` untuk `monitoring` dan `admin`
+- `SUPER_ADMIN_REGISTRATION_CODE` untuk `super_admin`
 
 Contoh membuat akun petugas monitoring:
 
