@@ -86,6 +86,7 @@ def render_register(
     request: Request,
     templates: Jinja2Templates,
     *,
+    register_type: str = "service_user",
     error: str | None = None,
     success: str | None = None,
     form_data: dict | None = None,
@@ -96,6 +97,7 @@ def render_register(
         "register.html",
         {
             "request": request,
+            "register_type": register_type,
             "error": error,
             "success": success,
             "form_data": form_data or {},
@@ -130,7 +132,27 @@ def render_login(
 
 @router.get("/register")
 def register_page(request: Request, templates: Jinja2Templates = Depends(get_templates)):
-    return render_register(request, templates)
+    return RedirectResponse(url="/register/pengguna-jasa", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/register/pengguna-jasa")
+def register_service_user_page(request: Request, templates: Jinja2Templates = Depends(get_templates)):
+    return render_register(
+        request,
+        templates,
+        register_type="service_user",
+        form_data={"role": SERVICE_USER_ROLE},
+    )
+
+
+@router.get("/register/petugas")
+def register_internal_user_page(request: Request, templates: Jinja2Templates = Depends(get_templates)):
+    return render_register(
+        request,
+        templates,
+        register_type="internal",
+        form_data={"role": "monitoring"},
+    )
 
 
 @router.post("/register")
@@ -164,11 +186,13 @@ def register_user(
         "pic_name": pic_name,
         "registration_code": registration_code,
     }
+    register_type = "internal" if role in INTERNAL_REGISTRATION_ROLES else "service_user"
 
     if role not in SELF_REGISTRATION_ROLES:
         return render_register(
             request,
             templates,
+            register_type=register_type,
             error="Role pendaftaran tidak valid.",
             form_data=form_data,
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -178,6 +202,7 @@ def register_user(
         return render_register(
             request,
             templates,
+            register_type=register_type,
             error="Email dan nama PIC wajib diisi.",
             form_data=form_data,
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -187,6 +212,7 @@ def register_user(
         return render_register(
             request,
             templates,
+            register_type=register_type,
             error="Untuk akun perusahaan, nama perusahaan dan nomor izin/NIB/NPWP wajib diisi.",
             form_data=form_data,
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -196,6 +222,7 @@ def register_user(
         return render_register(
             request,
             templates,
+            register_type=register_type,
             error="Username wajib diisi untuk akun petugas.",
             form_data=form_data,
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -205,6 +232,7 @@ def register_user(
         return render_register(
             request,
             templates,
+            register_type=register_type,
             error="Email tidak valid.",
             form_data=form_data,
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -214,6 +242,7 @@ def register_user(
         return render_register(
             request,
             templates,
+            register_type=register_type,
             error="Kata sandi minimal 8 karakter.",
             form_data=form_data,
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -225,6 +254,7 @@ def register_user(
             return render_register(
                 request,
                 templates,
+                register_type=register_type,
                 error="Pendaftaran akun internal belum diaktifkan. Set environment variable kode registrasi terlebih dahulu.",
                 form_data=form_data,
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -233,6 +263,7 @@ def register_user(
             return render_register(
                 request,
                 templates,
+                register_type=register_type,
                 error="Kode registrasi internal tidak valid.",
                 form_data=form_data,
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -247,6 +278,7 @@ def register_user(
         return render_register(
             request,
             templates,
+            register_type=register_type,
             error="Email atau username sudah terdaftar.",
             form_data=form_data,
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -278,6 +310,7 @@ def register_user(
     return render_register(
         request,
         templates,
+        register_type=register_type,
         success=f"Pendaftaran {get_registration_label(role)} berhasil. Akun Anda menunggu verifikasi petugas sebelum bisa digunakan.",
     )
 

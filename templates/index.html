@@ -63,22 +63,27 @@
     {% else %}
     <section class="rounded-[28px] bg-white p-8 shadow-panel ring-1 ring-slate-200">
         <h1 class="text-2xl font-semibold text-slate-900">Pilih jenis akses Anda</h1>
-        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-500">Pengguna Jasa bisa mendaftar sendiri. Petugas Monitoring tidak memakai pendaftaran publik dan masuk memakai akun internal yang sudah dibuat di database.</p>
-        <div class="mt-8 grid gap-4 lg:grid-cols-3">
-            <a href="/register" class="rounded-[24px] border border-emerald-200 bg-emerald-50 p-6 text-left transition hover:-translate-y-0.5 hover:shadow-lg">
-                <p class="text-sm font-semibold text-emerald-700">Opsi 1</p>
-                <h2 class="mt-2 text-lg font-semibold text-slate-900">Daftar Pengguna Jasa</h2>
-                <p class="mt-2 text-sm leading-6 text-slate-600">Isi data perusahaan, PIC, dan password untuk membuat akun baru.</p>
+        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-500">Jalur perusahaan dan petugas dipisahkan dari halaman awal. Registrasi dan login pengguna jasa diberi prioritas visual lebih besar, sementara akses petugas tetap tersedia sebagai kartu ringkas.</p>
+        <div class="mt-8 grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1.35fr)_minmax(0,0.95fr)_minmax(0,0.95fr)]">
+            <a href="/register/pengguna-jasa" class="rounded-[24px] border border-emerald-200 bg-emerald-50 p-6 text-left transition hover:-translate-y-0.5 hover:shadow-lg sm:p-7">
+                <p class="text-sm font-semibold text-emerald-700">Registrasi</p>
+                <h2 class="mt-2 text-lg font-semibold text-slate-900 sm:text-xl">Registrasi Pengguna Jasa</h2>
+                <p class="mt-2 text-sm leading-6 text-slate-600">Isi data perusahaan, PIC, dan password untuk membuat akun baru yang akan dipakai mengajukan dokumen.</p>
             </a>
-            <a href="/login/pengguna-jasa" class="rounded-[24px] border border-sky-200 bg-sky-50 p-6 text-left transition hover:-translate-y-0.5 hover:shadow-lg">
-                <p class="text-sm font-semibold text-sky-700">Opsi 2</p>
-                <h2 class="mt-2 text-lg font-semibold text-slate-900">Login Pengguna Jasa</h2>
+            <a href="/login/pengguna-jasa" class="rounded-[24px] border border-sky-200 bg-sky-50 p-6 text-left transition hover:-translate-y-0.5 hover:shadow-lg sm:p-7">
+                <p class="text-sm font-semibold text-sky-700">Masuk</p>
+                <h2 class="mt-2 text-lg font-semibold text-slate-900 sm:text-xl">Login Pengguna Jasa</h2>
                 <p class="mt-2 text-sm leading-6 text-slate-600">Masuk memakai email perusahaan yang sudah terdaftar dan aktif.</p>
             </a>
-            <a href="/login/petugas" class="rounded-[24px] border border-violet-200 bg-violet-50 p-6 text-left transition hover:-translate-y-0.5 hover:shadow-lg">
-                <p class="text-sm font-semibold text-violet-700">Opsi 3</p>
-                <h2 class="mt-2 text-lg font-semibold text-slate-900">Login Petugas</h2>
-                <p class="mt-2 text-sm leading-6 text-slate-600">Masuk memakai akun petugas monitoring yang sudah dibuat secara internal.</p>
+            <a href="/register/petugas" class="rounded-[22px] border border-amber-200 bg-amber-50 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg sm:p-5">
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">Internal</p>
+                <h2 class="mt-2 text-base font-semibold text-slate-900">Registrasi Petugas</h2>
+                <p class="mt-2 text-sm leading-6 text-slate-600">Daftarkan akun monitoring, admin, atau super admin dengan kode registrasi internal.</p>
+            </a>
+            <a href="/login/petugas" class="rounded-[22px] border border-violet-200 bg-violet-50 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg sm:p-5">
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-violet-700">Internal</p>
+                <h2 class="mt-2 text-base font-semibold text-slate-900">Login Petugas</h2>
+                <p class="mt-2 text-sm leading-6 text-slate-600">Masuk memakai username atau email petugas yang sudah aktif.</p>
             </a>
         </div>
     </section>
