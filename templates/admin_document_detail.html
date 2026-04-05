@@ -49,6 +49,7 @@
             </div>
             {% endif %}
 
+            {% if can_reject_document %}
             <div class="rounded-[28px] bg-white p-6 shadow-panel ring-1 ring-slate-200 sm:p-8">
                 <h2 class="text-lg font-semibold text-slate-900">Tolak Dokumen</h2>
                 <p class="mt-2 text-sm text-slate-500">Berikan penjelasan yang jelas saat pengajuan tidak memenuhi persyaratan.</p>
@@ -57,21 +58,29 @@
                     <button type="submit" class="inline-flex items-center justify-center rounded-2xl bg-rose-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-rose-700">Tolak Pengajuan</button>
                 </form>
             </div>
+            {% endif %}
         </div>
 
         <div class="space-y-6">
+            {% if can_approve_document or can_process_document %}
             <div class="rounded-[28px] bg-white p-6 shadow-panel ring-1 ring-slate-200 sm:p-8">
                 <h2 class="text-lg font-semibold text-slate-900">Aksi Tinjauan</h2>
                 <div class="mt-5 flex flex-col gap-3">
+                    {% if can_approve_document %}
                     <form method="post" action="/admin/documents/{{ submission.document_id }}/approve">
                         <button type="submit" class="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700">Setujui</button>
                     </form>
+                    {% endif %}
+                    {% if can_process_document %}
                     <form method="post" action="/admin/documents/{{ submission.document_id }}/process">
                         <button type="submit" class="inline-flex w-full items-center justify-center rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-amber-400">Tandai Sedang Diproses</button>
                     </form>
+                    {% endif %}
                 </div>
             </div>
+            {% endif %}
 
+            {% if can_upload_result %}
             <div class="rounded-[28px] bg-white p-6 shadow-panel ring-1 ring-slate-200 sm:p-8">
                 <h2 class="text-lg font-semibold text-slate-900">Unggah Dokumen Hasil</h2>
                 <p class="mt-2 text-sm text-slate-500">Unggah file PDF hasil akhir. Aksi ini akan mengubah status pengajuan menjadi <span class="font-semibold text-emerald-700">SELESAI</span>.</p>
@@ -88,6 +97,7 @@
                     <button type="submit" class="inline-flex w-full items-center justify-center rounded-2xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700">Unggah Hasil dan Selesaikan</button>
                 </form>
             </div>
+            {% endif %}
         </div>
     </section>
 </div>

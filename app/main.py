@@ -3,7 +3,7 @@ from uuid import uuid4
 from datetime import datetime
 
 import uvicorn
-from fastapi import FastAPI, Request, Depends, Form, File, UploadFile, status
+from fastapi import FastAPI, Request, Depends, Form, File, UploadFile, status, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -16,8 +16,10 @@ from app.auth import (
     ACCOUNT_DEACTIVATED,
     ACCOUNT_PENDING,
     get_current_user,
+    is_admin_user,
     is_monitoring_user,
     is_service_user,
+    is_super_admin,
     get_session_secret,
     router as auth_router,
     session_uses_https,
@@ -105,6 +107,16 @@ def get_admin_user(request: Request, db: Session) -> models.User | None:
     return current_user
 
 
+def require_admin_role(user: models.User | None) -> None:
+    if not is_admin_user(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Akses admin diperlukan.")
+
+
+def require_super_admin_role(user: models.User | None) -> None:
+    if not is_super_admin(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Akses super admin diperlukan.")
+
+
 def build_admin_dashboard_context(
     request: Request,
     current_user: models.User,
@@ -148,6 +160,8 @@ def build_admin_user_management_context(
         "selected_status": selected_status,
         "account_status_labels": ACCOUNT_STATUS_LABELS,
         "message": message,
+        "can_approve_user": is_admin_user(current_user),
+        "can_deactivate_user": is_super_admin(current_user),
         "pending_count": db.query(models.User)
         .filter(
             models.User.role == "service_user",
@@ -226,6 +240,7 @@ def admin_users(
     current_user = get_admin_user(request, db)
     if not current_user:
         return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+    require_admin_role(current_user)
 
     selected_status = status_filter if status_filter in VALID_ACCOUNT_STATUSES else ""
     notice = message.strip() or None
@@ -355,6 +370,10 @@ def admin_document_detail(document_id: str, request: Request, db: Session = Depe
             "submission": submission,
             "status_labels": STATUS_LABELS,
             "upload_error": None,
+            "can_reject_document": True,
+            "can_approve_document": is_admin_user(current_user),
+            "can_process_document": is_admin_user(current_user),
+            "can_upload_result": is_admin_user(current_user),
         },
     )
 
@@ -375,6 +394,7 @@ def approve_service_user(user_id: int, request: Request, db: Session = Depends(g
     current_user = get_admin_user(request, db)
     if not current_user:
         return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+    require_admin_role(current_user)
 
     service_user = get_service_user_for_admin(db, user_id)
     if service_user:
@@ -393,6 +413,7 @@ def deactivate_service_user(user_id: int, request: Request, db: Session = Depend
     current_user = get_admin_user(request, db)
     if not current_user:
         return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+    require_super_admin_role(current_user)
 
     service_user = get_service_user_for_admin(db, user_id)
     if service_user:
@@ -411,6 +432,7 @@ def approve_document(document_id: str, request: Request, db: Session = Depends(g
     current_user = get_admin_user(request, db)
     if not current_user:
         return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+    require_admin_role(current_user)
 
     submission = (
         db.query(models.DocumentSubmission)
@@ -434,6 +456,7 @@ def process_document(document_id: str, request: Request, db: Session = Depends(g
     current_user = get_admin_user(request, db)
     if not current_user:
         return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+    require_admin_role(current_user)
 
     submission = (
         db.query(models.DocumentSubmission)
@@ -490,6 +513,7 @@ async def upload_result_document(
     current_user = get_admin_user(request, db)
     if not current_user:
         return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+    require_admin_role(current_user)
 
     submission = (
         db.query(models.DocumentSubmission)

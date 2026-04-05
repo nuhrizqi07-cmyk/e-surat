@@ -16,6 +16,7 @@ router = APIRouter(tags=["authentication"])
 
 SERVICE_USER_ROLE = "service_user"
 MONITORING_ROLES = {"monitoring", "admin", "super_admin"}
+ADMIN_ROLES = {"admin", "super_admin"}
 SELF_REGISTRATION_ROLES = {
     SERVICE_USER_ROLE,
     "monitoring",
@@ -53,6 +54,14 @@ def is_service_user(user: User | None) -> bool:
 
 def is_monitoring_user(user: User | None) -> bool:
     return bool(user and user.role in MONITORING_ROLES)
+
+
+def is_admin_user(user: User | None) -> bool:
+    return bool(user and user.role in ADMIN_ROLES)
+
+
+def is_super_admin(user: User | None) -> bool:
+    return bool(user and user.role == "super_admin")
 
 
 def get_registration_status() -> str:

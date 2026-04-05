@@ -12,6 +12,15 @@ Aplikasi web berbasis FastAPI untuk pengajuan dokumen oleh `service_user` dan pe
 - Pembuatan tanda terima PDF otomatis
 - Audit log aktivitas utama
 
+## Perbedaan Role Internal
+
+- `monitoring`
+  Bertugas meninjau antrean dokumen dan melakukan screening awal. Role ini bisa melihat dashboard internal, membuka detail dokumen, dan menolak dokumen dengan catatan, tetapi tidak bisa menyetujui dokumen, menandai proses, mengunggah hasil akhir, atau membuka halaman kelola pendaftar.
+- `admin`
+  Bertugas menjalankan operasi layanan. Role ini bisa melakukan seluruh tugas `monitoring`, menyetujui dokumen, menandai dokumen sedang diproses, mengunggah hasil akhir, dan mengaktifkan akun `service_user` dari halaman `Kelola Pendaftar`.
+- `super_admin`
+  Bertugas mengendalikan akun dan hak akses. Role ini memiliki seluruh hak `admin`, serta dapat menonaktifkan akun `service_user`. Role ini disiapkan sebagai level tertinggi untuk pengelolaan sistem dan akun internal.
+
 ## Teknologi
 
 - FastAPI
