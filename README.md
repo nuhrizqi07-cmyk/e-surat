@@ -9,7 +9,7 @@ Aplikasi web berbasis FastAPI untuk pengajuan dokumen oleh `service_user` dan pe
 - Dashboard pengguna untuk upload dan pantau dokumen
 - Dashboard admin/monitoring untuk verifikasi dokumen
 - Upload file hasil dokumen oleh petugas
-- Pembuatan tanda terima PDF otomatis
+- Pembuatan tanda terima PDF otomatis dengan signature token dari server
 - Audit log aktivitas utama
 
 ## Perbedaan Role Internal
@@ -55,9 +55,15 @@ Variabel environment yang didukung:
 - `DATABASE_PATH`
 - `SESSION_SECRET_KEY`
 - `SESSION_HTTPS_ONLY`
-- `SERVICE_USER_AUTO_APPROVE`
 - `PETUGAS_REGISTRATION_CODE`
 - `SUPER_ADMIN_REGISTRATION_CODE`
+- `RECEIPT_SIGNATURE_SECRET`
+
+## Aktivasi Akun
+
+- akun `service_user` hasil registrasi web selalu dibuat dengan status `PENDING`
+- akun `service_user` harus diaktifkan dulu oleh petugas dari halaman `Kelola Pendaftar`
+- akun petugas hasil registrasi web menjadi `ACTIVE` jika kode registrasi internal valid
 
 ## Deploy ke Railway
 
@@ -67,9 +73,9 @@ Environment variable yang disarankan di Railway:
 
 - `SESSION_SECRET_KEY`
 - `SESSION_HTTPS_ONLY=true`
-- `SERVICE_USER_AUTO_APPROVE=false`
 - `PETUGAS_REGISTRATION_CODE`
 - `SUPER_ADMIN_REGISTRATION_CODE`
+- `RECEIPT_SIGNATURE_SECRET`
 
 ## Kelola Akun Petugas
 

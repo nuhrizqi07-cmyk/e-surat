@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -41,6 +44,14 @@ def generate_submission_receipt(
         ("Timestamp", timestamp),
     ]
 
+    signature_secret = os.getenv("RECEIPT_SIGNATURE_SECRET", "submitdoc-receipt-signature")
+    signature_payload = "|".join([document_id, username, document_date, subject, status, timestamp])
+    signature_value = hmac.new(
+        signature_secret.encode("utf-8"),
+        signature_payload.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest().upper()
+
     y = top - 22 * mm
     pdf.setFont("Helvetica", 12)
     for label, value in rows:
@@ -50,8 +61,18 @@ def generate_submission_receipt(
         pdf.drawString(left + 38 * mm, y, value)
         y -= line_gap
 
+    signature_box_y = y - 4 * mm
+    box_width = 78 * mm
+    box_height = 28 * mm
+    pdf.roundRect(left, signature_box_y - box_height, box_width, box_height, 4 * mm, stroke=1, fill=0)
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(left + 4 * mm, signature_box_y - 7 * mm, "Digital Signature")
+    pdf.setFont("Helvetica", 9)
+    pdf.drawString(left + 4 * mm, signature_box_y - 13 * mm, "Signed electronically by Sistem Pengajuan Dokumen")
+    pdf.drawString(left + 4 * mm, signature_box_y - 19 * mm, f"Signature ID: {signature_value[:24]}")
+
     pdf.setFont("Helvetica-Oblique", 10)
-    pdf.drawString(left, y - 4 * mm, "Harap simpan tanda terima ini untuk arsip Anda.")
+    pdf.drawString(left, signature_box_y - box_height - 8 * mm, "Harap simpan tanda terima ini untuk arsip Anda.")
 
     pdf.showPage()
     pdf.save()

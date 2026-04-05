@@ -4,7 +4,7 @@ import bcrypt
 from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 
 from app.audit import log_audit_event
@@ -65,8 +65,11 @@ def is_super_admin(user: User | None) -> bool:
 
 
 def get_registration_status() -> str:
-    auto_approve = os.getenv("SERVICE_USER_AUTO_APPROVE", "false").lower() == "true"
-    return ACCOUNT_ACTIVE if auto_approve else ACCOUNT_PENDING
+    return ACCOUNT_PENDING
+
+
+def normalize_internal_username(value: str) -> str:
+    return value.strip().lower()
 
 
 def get_internal_registration_code(role: str) -> str:
@@ -179,7 +182,7 @@ def register_user(
     templates: Jinja2Templates = Depends(get_templates),
 ):
     role = role.strip()
-    username = username.strip()
+    username = normalize_internal_username(username) if role in INTERNAL_REGISTRATION_ROLES else username.strip()
     company_name = company_name.strip()
     email = email.strip().lower()
     business_id = business_id.strip()
@@ -281,7 +284,7 @@ def register_user(
     existing_user = db.query(User).filter(User.email == email).first()
     existing_username = None
     if username:
-        existing_username = db.query(User).filter(User.username == username).first()
+        existing_username = db.query(User).filter(func.lower(User.username) == username).first()
 
     if existing_user or existing_username:
         return render_register(
@@ -393,12 +396,13 @@ def monitoring_login(
     templates: Jinja2Templates = Depends(get_templates),
 ):
     identifier = identifier.strip()
+    normalized_identifier = identifier.lower()
     form_data = {"identifier": identifier}
     user = (
         db.query(User)
         .filter(
             User.role.in_(MONITORING_ROLES),
-            or_(User.username == identifier, User.email == identifier.lower()),
+            or_(func.lower(User.username) == normalized_identifier, User.email == normalized_identifier),
         )
         .first()
     )
