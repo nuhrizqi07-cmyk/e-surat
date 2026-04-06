@@ -48,6 +48,8 @@ python -m uvicorn app.main:app --reload --port 8010
 
 `http://127.0.0.1:8010`
 
+Project ini otomatis membaca file `.env` di root folder saat aplikasi atau CLI dijalankan secara lokal.
+
 ## Konfigurasi Opsional
 
 Variabel environment yang didukung:
