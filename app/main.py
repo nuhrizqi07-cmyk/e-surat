@@ -345,6 +345,33 @@ def download_receipt_document(document_id: str, request: Request, db: Session = 
     )
 
 
+@app.get("/admin/documents/{document_id}/file")
+def download_admin_original_document(document_id: str, request: Request, db: Session = Depends(get_db)):
+    current_user = get_admin_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/login/petugas", status_code=status.HTTP_303_SEE_OTHER)
+    require_admin_role(current_user)
+
+    submission = (
+        db.query(models.DocumentSubmission)
+        .filter(models.DocumentSubmission.document_id == document_id)
+        .first()
+    )
+    if not submission or not submission.stored_filename:
+        return RedirectResponse(url=f"/admin/documents/{document_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+    upload_path = UPLOADS_DIR / submission.stored_filename
+    if not upload_path.exists():
+        return RedirectResponse(url=f"/admin/documents/{document_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+    log_audit_event(db, request, current_user.id, "download", submission.document_id)
+    return FileResponse(
+        path=upload_path,
+        media_type="application/pdf",
+        filename=submission.original_filename or submission.stored_filename,
+    )
+
+
 @app.get("/admin/documents/{document_id}", response_class=HTMLResponse)
 def admin_document_detail(document_id: str, request: Request, db: Session = Depends(get_db)):
     current_user = get_admin_user(request, db)
@@ -374,6 +401,7 @@ def admin_document_detail(document_id: str, request: Request, db: Session = Depe
             "can_approve_document": is_admin_user(current_user),
             "can_process_document": is_admin_user(current_user),
             "can_upload_result": is_admin_user(current_user),
+            "can_download_original": is_admin_user(current_user),
         },
     )
 
